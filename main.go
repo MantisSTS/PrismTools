@@ -17,46 +17,46 @@ type Prism struct {
 
 type Issue struct {
 	AffectedHosts           []AffectedHost `json:"affected_hosts"`
-	Assignee                string         `json:"assignee"`
-	Assignees               []string       `json:"assignees"`
-	ClientDefinedRiskRating string         `json:"client_defined_risk_rating"`
+	Assignee                *string        `json:"assignee"`
+	Assignees               *[]string      `json:"assignees"`
+	ClientDefinedRiskRating *string        `json:"client_defined_risk_rating"`
 	ConfirmedAt             string         `json:"confirmed_at"`
-	Cves                    []string       `json:"cves"`
-	CvssVector              string         `json:"cvss_vector"`
-	ExploitAvailable        bool           `json:"exploit_available"`
+	Cves                    *[]string      `json:"cves"`
+	CvssVector              *string        `json:"cvss_vector"`
+	ExploitAvailable        *bool          `json:"exploit_available"`
 	Finding                 string         `json:"finding"`
-	Id                      int64          `json:"id"`
+	Id                      *int64         `json:"id"`
 	Name                    string         `json:"name"`
-	NessusId                interface{}    `json:"nessus_id"`
+	NessusId                *string        `json:"nessus_id"`
 	OriginalRiskRating      string         `json:"original_risk_rating"`
-	OwaspId                 interface{}    `json:"owasp_id"`
-	PublishedAt             string         `json:"published_at"`
-	Rapid7Id                interface{}    `json:"rapid7_id"`
-	Recommendation          string         `json:"recommendation"`
+	OwaspId                 *string        `json:"owasp_id"`
+	PublishedAt             *string        `json:"published_at"`
+	Rapid7Id                *string        `json:"rapid7_id"`
+	Recommendation          *string        `json:"recommendation"`
 	References              []string       `json:"references"`
-	RemediatedAt            interface{}    `json:"remediated_at"`
+	RemediatedAt            *string        `json:"remediated_at"`
 	Status                  string         `json:"status"`
-	Summary                 string         `json:"summary"`
-	SuppressForProject      bool           `json:"suppress_for_project"`
-	SuppressOnAllProjects   bool           `json:"suppress_on_all_projects"`
-	SuppressUntil           interface{}    `json:"suppress_until"`
+	Summary                 *string        `json:"summary"`
+	SuppressForProject      *bool          `json:"suppress_for_project"`
+	SuppressOnAllProjects   *bool          `json:"suppress_on_all_projects"`
+	SuppressUntil           *string        `json:"suppress_until"`
 	TechnicalDetails        string         `json:"technical_details"`
 }
 
 type AffectedHost struct {
-	Cpes                []string    `json:"cpes"`
-	Hostname            string      `json:"hostname"`
-	Ip                  string      `json:"ip"`
-	Location            string      `json:"location"`
-	Name                string      `json:"name"`
-	OperatingSystem     string      `json:"operating_system"`
-	Port                int         `json:"port"`
-	Protocol            string      `json:"protocol"`
-	Service             string      `json:"service"`
-	Status              string      `json:"status"`
-	SuppressAllProjects bool        `json:"suppress_all_projects"`
-	SuppressProject     bool        `json:"suppress_project"`
-	SuppressUntil       interface{} `json:"suppress_until"`
+	Cpes                *[]string `json:"cpes"`
+	Hostname            string    `json:"hostname"`
+	Ip                  string    `json:"ip"`
+	Location            *string   `json:"location"`
+	Name                *string   `json:"name"`
+	OperatingSystem     *string   `json:"operating_system"`
+	Port                *int      `json:"port"`
+	Protocol            *string   `json:"protocol"`
+	Service             *string   `json:"service"`
+	Status              *string   `json:"status"`
+	SuppressAllProjects *bool     `json:"suppress_all_projects"`
+	SuppressProject     *bool     `json:"suppress_project"`
+	SuppressUntil       *string   `json:"suppress_until"`
 }
 
 type Nuclei struct {
@@ -67,20 +67,20 @@ type Nuclei struct {
 		Author      []string `json:"author"`
 		Description string   `json:"description"`
 		Name        string   `json:"name"`
-		Reference   []string `json:"reference,omitempty"`
+		Reference   []string `json:"reference"`
 		Severity    string   `json:"severity"`
 		Tags        []string `json:"tags"`
 	} `json:"info"`
-	Ip            string      `json:"ip"`
-	MatchedAt     string      `json:"matched-at"`
-	MatchedLine   interface{} `json:"matched-line"`
-	MatcherStatus bool        `json:"matcher-status"`
-	Template      string      `json:"template"`
-	TemplateId    string      `json:"template-id"`
-	TemplatePath  string      `json:"template-path"`
-	TemplateUrl   string      `json:"template-url"`
-	Timestamp     string      `json:"timestamp"`
-	Type          string      `json:"type"`
+	Ip            string `json:"ip"`
+	MatchedAt     string `json:"matched-at"`
+	MatchedLine   string `json:"matched-line"`
+	MatcherStatus bool   `json:"matcher-status"`
+	Template      string `json:"template"`
+	TemplateId    string `json:"template-id"`
+	TemplatePath  string `json:"template-path"`
+	TemplateUrl   string `json:"template-url"`
+	Timestamp     string `json:"timestamp"`
+	Type          string `json:"type"`
 }
 
 func (n *Nuclei) ParseJSON() []Nuclei {
@@ -177,6 +177,7 @@ func (n *Nuclei) ToPrismJSON() {
 
 				if addHost {
 					var affectedHost AffectedHost
+
 					affectedHost.Ip = result.Ip
 					affectedHost.Hostname = result.Host
 					// affectedHost.Port =
@@ -201,17 +202,19 @@ func (n *Nuclei) ToPrismJSON() {
 			var issue Issue
 			issue.Name = result.Info.Name
 			issue.Finding = result.Info.Description
-			if result.Timestamp == "" {
-				timestamp := time.Now().Format("2006-01-02")
-				issue.ConfirmedAt = timestamp
-			}
-			issue.ConfirmedAt = result.Timestamp
+			timestamp := time.Now().Format("2006-01-02")
+			issue.ConfirmedAt = timestamp
 			issue.OriginalRiskRating = result.Info.Severity
 			issue.Status = "open"
 
 			// Check if the host is already in the affected hosts
 			var affectedHost AffectedHost
+
 			affectedHost.Ip = result.Ip
+			if result.Ip == "" {
+				affectedHost.Ip = result.Host
+			}
+
 			affectedHost.Hostname = result.Host
 			issue.AffectedHosts = append(issue.AffectedHosts, affectedHost)
 
