@@ -9,6 +9,8 @@ import (
 	"os"
 	"strings"
 	"sync"
+
+	"github.com/goark/go-cvss/v3/metric"
 )
 
 type Prism struct {
@@ -83,6 +85,8 @@ func main() {
 	// Create a flag to specify the file to read using the flag package
 	filename := flag.String("f", "", "The file to read")
 	outputFile := flag.String("o", "", "The file to write the results to")
+	fixCVSS := flag.Bool("cvss", false, "Map the CVSS vector with the Severity of the issue")
+
 	flag.Parse()
 
 	if *filename == "" {
@@ -114,6 +118,7 @@ func main() {
 
 		// Check the technical details for "Tenable ciphername" and replace it with "Ciphername"
 		if strings.Contains(issue.TechnicalDetails, "Tenable ciphername") {
+			fmt.Println("[+] Found Tenable ciphername in technical details, updating...")
 			updatedTechnicalDetails := strings.ReplaceAll(issue.TechnicalDetails, "Tenable ciphername", "Ciphername")
 			prism.Issues[issueIndex].TechnicalDetails = updatedTechnicalDetails
 		}
@@ -123,8 +128,7 @@ func main() {
 			wg.Add(1)
 			go func(prismIssueIndex int, prismRefIndex int) {
 				defer wg.Done()
-				if strings.Contains(prism.Issues[prismIssueIndex].References[prismRefIndex], "nessus.org/u?") {
-
+				if strings.Contains(prism.Issues[prismIssueIndex].References[prismRefIndex], "nessus.org/u?") || strings.Contains(prism.Issues[prismIssueIndex].References[prismRefIndex], "api.tenable.com/v1/u?") {
 					// Do a HTTP request to the URL and get the redirect URL
 					resp, err := http.Get(prism.Issues[prismIssueIndex].References[prismRefIndex])
 					if err != nil {
@@ -133,7 +137,7 @@ func main() {
 
 					// Get the redirect URL
 					updatedReference := resp.Request.URL.String()
-
+					fmt.Println("[+] Fixing Reference URL: " + prism.Issues[prismIssueIndex].References[prismRefIndex] + " -> " + updatedReference)
 					prism.Issues[prismIssueIndex].References[prismRefIndex] = updatedReference
 				}
 			}(issueIndex, refIndex)
@@ -141,6 +145,19 @@ func main() {
 
 		// Check the CVSS score
 		if issue.CvssVector != nil {
+
+			*prism.Issues[issueIndex].CvssVector = strings.TrimRight(*prism.Issues[issueIndex].CvssVector, "/")
+			if *fixCVSS {
+				bm, _ := metric.NewBase().Decode(*prism.Issues[issueIndex].CvssVector)
+				if !strings.EqualFold(bm.Severity().String(), prism.Issues[issueIndex].OriginalRiskRating) {
+					if prism.Issues[issueIndex].OriginalRiskRating == "Info" && bm.Severity().String() == "None" {
+						continue
+					}
+					fmt.Println("[+] Fixing Severity: " + prism.Issues[issueIndex].OriginalRiskRating + " -> " + bm.Severity().String())
+					prism.Issues[issueIndex].OriginalRiskRating = bm.Severity().String()
+				}
+			}
+
 			if strings.Contains(*issue.CvssVector, "CVSS:3.0") {
 				// Convert the CVSS score from CVSS:3.0 to CVSS:3.1
 				*prism.Issues[issueIndex].CvssVector = strings.Replace(*prism.Issues[issueIndex].CvssVector, "CVSS:3.0", "CVSS:3.1", 1)
