@@ -127,7 +127,7 @@ func main() {
 					// Get the redirect URL
 					updatedReference := resp.Request.URL.String()
 
-					prism.Issues[prismIssueIndex].References[prismRefIndex] = strings.Replace(prism.Issues[prismIssueIndex].References[prismRefIndex], "nessus.org/u?", updatedReference, 1)
+					prism.Issues[prismIssueIndex].References[prismRefIndex] = updatedReference
 				}
 			}(issueIndex, refIndex)
 		}
