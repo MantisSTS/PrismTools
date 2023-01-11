@@ -1,2 +1,4 @@
-output/custom/*
-output/nuclei/*
+NucleiImporter/output/custom/*
+NucleiImporter/output/nuclei/*
+GoFuckery/*.json
+

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -82,8 +81,8 @@ type AffectedHost struct {
 func main() {
 
 	// Create a flag to specify the file to read using the flag package
-	filename := flag.String("file", "", "The file to read")
-	outputFile := flag.String("output", "", "The file to write the results to")
+	filename := flag.String("f", "", "The file to read")
+	outputFile := flag.String("o", "", "The file to write the results to")
 	flag.Parse()
 
 	if *filename == "" {
@@ -97,7 +96,7 @@ func main() {
 	}
 
 	// Read the file
-	file, err := ioutil.ReadFile(*filename)
+	file, err := os.ReadFile(*filename)
 	if err != nil {
 		panic(err)
 	}
@@ -112,6 +111,14 @@ func main() {
 	var wg sync.WaitGroup
 
 	for issueIndex, issue := range prism.Issues {
+
+		// Check the technical details for "Tenable ciphername" and replace it with "Ciphername"
+		if strings.Contains(issue.TechnicalDetails, "Tenable ciphername") {
+			updatedTechnicalDetails := strings.ReplaceAll(issue.TechnicalDetails, "Tenable ciphername", "Ciphername")
+			prism.Issues[issueIndex].TechnicalDetails = updatedTechnicalDetails
+		}
+
+		// Check the references for "nessus.org/u?" and replace it with the redirect URL
 		for refIndex := range issue.References {
 			wg.Add(1)
 			go func(prismIssueIndex int, prismRefIndex int) {
@@ -150,7 +157,7 @@ func main() {
 	}
 
 	// Write the JSON to a file
-	err = ioutil.WriteFile(*outputFile, json, 0644)
+	err = os.WriteFile(*outputFile, json, 0644)
 	if err != nil {
 		panic(err)
 	}
