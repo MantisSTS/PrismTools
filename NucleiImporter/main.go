@@ -3,11 +3,17 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"os"
 	"strings"
 	"time"
+)
+
+var (
+	inputFile        *string
+	currentTimestamp = time.Now().UnixNano()
 )
 
 type Prism struct {
@@ -89,8 +95,15 @@ func (n *Nuclei) ParseJSON() []Nuclei {
 	// Get todays date
 	today := time.Now().Format("2006-01-02")
 
-	// read the output/nuclei/nuclei.json file line by line
-	file, err := os.Open(fmt.Sprintf("output/nuclei/nuclei_output_%s.json", today))
+	var file *os.File
+	var err error
+
+	if *inputFile != "" {
+		file, err = os.Open(*inputFile)
+	} else {
+		file, err = os.Open(fmt.Sprintf("output/nuclei/nuclei_output_%s.json", today))
+	}
+
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -119,7 +132,8 @@ func (n *Nuclei) ToJSON() {
 	today := time.Now().Format("2006-01-02")
 
 	// Create the output file
-	file, err := os.Create(fmt.Sprintf("output/custom/nuclei_output_%s.json", today))
+	outFile := fmt.Sprintf("output/custom/nuclei_output_%s_%d.json", today, currentTimestamp)
+	file, err := os.Create(outFile)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -142,7 +156,9 @@ func (n *Nuclei) ToPrismJSON() {
 	today := time.Now().Format("2006-01-02")
 
 	// Create the output file
-	file, err := os.Create(fmt.Sprintf("output/custom/prism_json_%s.json", today))
+	outFile := fmt.Sprintf("output/custom/prism_json_%s_%d.json", today, currentTimestamp)
+	file, err := os.Create(outFile)
+	fmt.Println("[+] Writing output to " + outFile)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -248,7 +264,12 @@ func (n *Nuclei) ToPrismJSON() {
 }
 
 func main() {
+
+	inputFile = flag.String("f", "", "File to parse")
+	flag.Parse()
+
 	n := Nuclei{}
+	// n.currentTimestamp = currentTimestamp()
 	n.ParseJSON()
 	n.ToJSON()
 	n.ToPrismJSON()

@@ -1,16 +1,20 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 
+	"github.com/PullRequestInc/go-gpt3"
 	"github.com/goark/go-cvss/v3/metric"
+	"github.com/joho/godotenv"
 )
 
 type Prism struct {
@@ -80,12 +84,22 @@ type AffectedHost struct {
 	SuppressUntil       *string   `json:"suppress_until"`
 }
 
+func contains(s []string, e string) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}
+
 func main() {
 
 	// Create a flag to specify the file to read using the flag package
 	filename := flag.String("f", "", "The file to read")
 	outputFile := flag.String("o", "", "The file to write the results to")
 	fixCVSS := flag.Bool("cvss", false, "Map the CVSS vector with the Severity of the issue")
+	writeExecSummary := flag.Bool("exec", false, "Write the Executive Summary (Warning! This will overwrite the existing Executive Summary!) Also requires the ChatGPT API key to be set in the CHATGPT_API_KEY environment variable.")
 
 	flag.Parse()
 
@@ -112,9 +126,15 @@ func main() {
 		panic(err)
 	}
 
+	var issuesForExecSummary []string
+
 	var wg sync.WaitGroup
 
 	for issueIndex, issue := range prism.Issues {
+
+		if issue.OriginalRiskRating == "Critical" || issue.OriginalRiskRating == "High" || issue.OriginalRiskRating == "Medium" {
+			issuesForExecSummary = append(issuesForExecSummary, issue.Name)
+		}
 
 		// Check the technical details for "Tenable ciphername" and replace it with "Ciphername"
 		if strings.Contains(issue.TechnicalDetails, "Tenable ciphername") {
@@ -123,28 +143,81 @@ func main() {
 			prism.Issues[issueIndex].TechnicalDetails = updatedTechnicalDetails
 		}
 
-		// Check the references for "nessus.org/u?" and replace it with the redirect URL
-		for refIndex := range issue.References {
-			wg.Add(1)
-			go func(prismIssueIndex int, prismRefIndex int) {
-				defer wg.Done()
-				if strings.Contains(prism.Issues[prismIssueIndex].References[prismRefIndex], "nessus.org/u?") || strings.Contains(prism.Issues[prismIssueIndex].References[prismRefIndex], "api.tenable.com/v1/u?") {
-					// Do a HTTP request to the URL and get the redirect URL
-					resp, err := http.Get(prism.Issues[prismIssueIndex].References[prismRefIndex])
-					if err != nil {
-						log.Println(err)
-					}
+		// Perform a regex lookup on the technical details to check for Fixed version : [0-9\.]+?</p> and remove it
+		re := regexp.MustCompile(`Fixed version\s?:\s?[0-9\.]+?</p>`)
+		if re.MatchString(issue.TechnicalDetails) {
+			fmt.Println("[+] Found Fixed version in technical details, updating...")
+			updatedTechnicalDetails := re.ReplaceAllString(issue.TechnicalDetails, "</p>")
+			prism.Issues[issueIndex].TechnicalDetails = updatedTechnicalDetails
+		}
 
-					// Get the redirect URL
-					updatedReference := resp.Request.URL.String()
-					fmt.Println("[+] Fixing Reference URL: " + prism.Issues[prismIssueIndex].References[prismRefIndex] + " -> " + updatedReference)
-					prism.Issues[prismIssueIndex].References[prismRefIndex] = updatedReference
-				}
-			}(issueIndex, refIndex)
+		// Check for "remote"
+		badStrings := map[string]string{
+			"remote service is": "service was",
+			"remote server":     "server",
+			"remote web server": "web server",
+			"The remote":        "The",
+		}
+
+		for badString, goodString := range badStrings {
+
+			// Check the finding
+			if strings.Contains(issue.Finding, badString) {
+				fmt.Println("[+] Found \"", badString, "\" in finding, updating...")
+				updatedFinding := strings.ReplaceAll(issue.Finding, badString, goodString)
+				prism.Issues[issueIndex].Finding = updatedFinding
+			}
+
+			// Check the summary
+			if strings.Contains(*issue.Summary, badString) {
+				fmt.Println("[+] Found \"", badString, "\" in summary, updating...")
+				updatedSummary := strings.ReplaceAll(*issue.Summary, badString, goodString)
+				*prism.Issues[issueIndex].Summary = updatedSummary
+			}
+
+			// Check the Technical Details
+			if strings.Contains(issue.TechnicalDetails, badString) {
+				fmt.Println("[+] Found \"", badString, "\" in technical details, updating...")
+				updatedTechnicalDetails := strings.ReplaceAll(issue.TechnicalDetails, badString, goodString)
+				prism.Issues[issueIndex].TechnicalDetails = updatedTechnicalDetails
+			}
+
+			// Check the recommendation
+			if strings.Contains(*issue.Recommendation, badString) {
+				fmt.Println("[+] Found \"", badString, "\" in recommendation, updating...")
+				updatedRecommendation := strings.ReplaceAll(*issue.Recommendation, badString, goodString)
+				*prism.Issues[issueIndex].Recommendation = updatedRecommendation
+			}
+
+		}
+
+		if issue.References != nil {
+
+			// Check the references for "nessus.org/u?" and replace it with the redirect URL
+			for refIndex := range issue.References {
+				wg.Add(1)
+				go func(prismIssueIndex int, prismRefIndex int) {
+					defer wg.Done()
+					if strings.Contains(prism.Issues[prismIssueIndex].References[prismRefIndex], "nessus.org/u?") || strings.Contains(prism.Issues[prismIssueIndex].References[prismRefIndex], "api.tenable.com/v1/u?") {
+						// Do a HTTP request to the URL and get the redirect URL
+						resp, err := http.Get(prism.Issues[prismIssueIndex].References[prismRefIndex])
+						if err != nil {
+							log.Println(err)
+						}
+
+						// Get the redirect URL
+						updatedReference := resp.Request.URL.String()
+						fmt.Println("[+] Fixing Reference URL: " + prism.Issues[prismIssueIndex].References[prismRefIndex] + " -> " + updatedReference)
+						prism.Issues[prismIssueIndex].References[prismRefIndex] = updatedReference
+					}
+				}(issueIndex, refIndex)
+			}
+		} else {
+			fmt.Println("[-] No references found for issue: " + issue.Name)
 		}
 
 		// Check the CVSS score
-		if issue.CvssVector != nil {
+		if issue.CvssVector != nil && *issue.CvssVector != "" {
 
 			*prism.Issues[issueIndex].CvssVector = strings.TrimRight(*prism.Issues[issueIndex].CvssVector, "/")
 			if *fixCVSS {
@@ -162,10 +235,40 @@ func main() {
 				// Convert the CVSS score from CVSS:3.0 to CVSS:3.1
 				*prism.Issues[issueIndex].CvssVector = strings.Replace(*prism.Issues[issueIndex].CvssVector, "CVSS:3.0", "CVSS:3.1", 1)
 			}
+		} else {
+			fmt.Println("[-] No CVSS score found for issue: " + issue.Name)
+		}
+
+		if !strings.HasPrefix(*issue.Recommendation, "It is recommended ") {
+			fmt.Println("[-] Recommendation does not start with 'It is recommended ' for issue: " + issue.Name)
 		}
 	}
 
 	wg.Wait()
+
+	if *writeExecSummary {
+		godotenv.Load()
+
+		apiKey := os.Getenv("CHATGPT_API_KEY")
+		if apiKey == "" {
+			log.Fatalln("Missing API KEY")
+		}
+
+		ctx := context.Background()
+		client := gpt3.NewClient(apiKey)
+
+		resp, err := client.Completion(ctx, gpt3.CompletionRequest{
+			Prompt:    []string{"Explain, in plain English, the following vulnerabilities: " + strings.Join(issuesForExecSummary, ", ")},
+			MaxTokens: gpt3.IntPtr(9999),
+			Stop:      []string{"."},
+			Echo:      false,
+		})
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		fmt.Println("[+] Exec Summary: \n", resp.Choices[0].Text)
+	}
 
 	// Marshal the struct back into JSON
 	json, err := json.MarshalIndent(prism, "", "  ")

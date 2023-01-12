@@ -23,6 +23,9 @@ fi
 # Install nuclei templates
 $nuclei -update-templates
 
+mkdir -p ./output/nuclei
+mkdir -p ./output/custom
+
 # Read in the file containing the list of URLs as a flag
 while getopts f: flag
 do
@@ -44,9 +47,6 @@ then
     echo "File does not exist"
     exit
 fi
-
-mkdir -p ./output/nuclei
-mkdir -p ./output/custom
 
 # Read in the file containing the list of URLs
 cat $file | $nuclei -t ~/nuclei-templates/ -o output/nuclei/nuclei_output_$(date +'%F').json -json
