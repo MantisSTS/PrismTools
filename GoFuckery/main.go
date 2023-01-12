@@ -247,7 +247,7 @@ func main() {
 		// client := gpt3.NewClient(apiKey)
 		// client.Engine(ctx, gpt3.TextDavinci003Engine)
 
-		question := "Explain, in plain English, the following vulnerabilities: " + strings.Join(issuesForExecSummary, ", ")
+		question := "Explain, in an executive summary format using paragraphs, the following vulnerabilities: " + strings.Join(issuesForExecSummary, ", ")
 
 		fmt.Println("Request the following from ChatGPT: ", question)
 
