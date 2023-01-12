@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -12,9 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/PullRequestInc/go-gpt3"
 	"github.com/goark/go-cvss/v3/metric"
-	"github.com/joho/godotenv"
 )
 
 type Prism struct {
@@ -84,15 +81,6 @@ type AffectedHost struct {
 	SuppressUntil       *string   `json:"suppress_until"`
 }
 
-func contains(s []string, e string) bool {
-	for _, a := range s {
-		if a == e {
-			return true
-		}
-	}
-	return false
-}
-
 func main() {
 
 	// Create a flag to specify the file to read using the flag package
@@ -132,7 +120,7 @@ func main() {
 
 	for issueIndex, issue := range prism.Issues {
 
-		if issue.OriginalRiskRating == "Critical" || issue.OriginalRiskRating == "High" || issue.OriginalRiskRating == "Medium" {
+		if issue.OriginalRiskRating == "Critical" || issue.OriginalRiskRating == "High" {
 			issuesForExecSummary = append(issuesForExecSummary, issue.Name)
 		}
 
@@ -203,6 +191,7 @@ func main() {
 						resp, err := http.Get(prism.Issues[prismIssueIndex].References[prismRefIndex])
 						if err != nil {
 							log.Println(err)
+							return
 						}
 
 						// Get the redirect URL
@@ -247,29 +236,34 @@ func main() {
 	wg.Wait()
 
 	if *writeExecSummary {
-		godotenv.Load()
+		// godotenv.Load()
 
-		apiKey := os.Getenv("CHATGPT_API_KEY")
-		if apiKey == "" {
-			log.Fatalln("Missing API KEY")
-		}
+		// apiKey := os.Getenv("CHATGPT_API_KEY")
+		// if apiKey == "" {
+		// 	log.Fatalln("Missing API KEY")
+		// }
 
-		ctx := context.Background()
-		client := gpt3.NewClient(apiKey)
+		// ctx := context.Background()
+		// client := gpt3.NewClient(apiKey)
+		// client.Engine(ctx, gpt3.TextDavinci003Engine)
 
-		resp, err := client.Completion(ctx, gpt3.CompletionRequest{
-			Prompt:    []string{"Explain, in plain English, the following vulnerabilities: " + strings.Join(issuesForExecSummary, ", ")},
-			MaxTokens: gpt3.IntPtr(9999),
-			Stop:      []string{"."},
-			Echo:      false,
-		})
-		if err != nil {
-			log.Fatalln(err)
-		}
+		question := "Explain, in plain English, the following vulnerabilities: " + strings.Join(issuesForExecSummary, ", ")
 
-		fmt.Println("[+] Exec Summary: \n", resp.Choices[0].Text)
+		fmt.Println("Request the following from ChatGPT: ", question)
+
+		// resp, err := client.Completion(ctx, gpt3.CompletionRequest{
+		// 	Prompt:      []string{question},
+		// 	MaxTokens:   gpt3.IntPtr(1000),
+		// 	Temperature: gpt3.Float32Ptr(0),
+		// 	Stop:        []string{"\r\n\r\n"},
+		// })
+
+		// if err != nil {
+		// 	log.Println(err)
+		// }
+
+		// fmt.Println(resp.Choices[0].Text)
 	}
-
 	// Marshal the struct back into JSON
 	json, err := json.MarshalIndent(prism, "", "  ")
 	if err != nil {
