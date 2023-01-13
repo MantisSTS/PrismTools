@@ -1,5 +1,5 @@
 // Just to stop erroring
-package main
+package PrismDataStructs
 
 type Prism struct {
 	Issues  []Issue `json:"issues"`

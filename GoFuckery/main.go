@@ -141,10 +141,24 @@ func main() {
 
 		// Check for "remote"
 		badStrings := map[string]string{
-			"remote service is": "service was",
-			"remote server":     "server",
-			"remote web server": "web server",
-			"The remote":        "The",
+			"remote service is":        "service was",
+			"remote server":            "server",
+			"remote web server":        "web server",
+			"The remote":               "The",
+			"remote host":              "host",
+			"is affected":              "was affected",
+			"service allows":           "service allowed",
+			"service supports":         "service supported",
+			"host supports":            "host supported",
+			"algorithms are supported": "algorithms were supported",
+			"algorithms are enabled":   "algorithms were enabled",
+			"It is, therefore,":        "It was, therefore,",
+			"certificate has already":  "certificate had already",
+			"service ends":             "service ended",
+			"service encrypts":         "service encrypted",
+			"service accepts":          "service accepted",
+			"host allows":              "host allowed",
+			"server allows":            "server allowed",
 		}
 
 		for badString, goodString := range badStrings {
