@@ -62,8 +62,8 @@ type Issue struct {
 
 type AffectedHost struct {
 	Cpes                *[]string `json:"cpes"`
-	Hostname            string    `json:"hostname"`
-	Ip                  string    `json:"ip"`
+	Hostname            *string   `json:"hostname"`
+	Ip                  *string   `json:"ip"`
 	Location            *string   `json:"location"`
 	Name                *string   `json:"name"`
 	OperatingSystem     *string   `json:"operating_system"`
@@ -79,8 +79,9 @@ type AffectedHost struct {
 func main() {
 
 	// Read in file of hosts to remove
-	hostFile := flag.String("hosts", "", "File containing hosts to remove")
-	prismFile := flag.String("prism", "", "Prism file to remove hosts from")
+	hostFile := flag.String("f", "", "File containing hosts to remove")
+	prismFile := flag.String("p", "", "Prism file to remove hosts from")
+	outputFile := flag.String("o", "", "Prism file to remove hosts from")
 	flag.Parse()
 
 	if *hostFile == "" {
@@ -115,21 +116,52 @@ func main() {
 	var hostsToRemove []string
 	fileScanner := bufio.NewScanner(fHostsFile)
 	for fileScanner.Scan() {
+		if fileScanner.Text() == "" {
+			continue
+		}
 		hostsToRemove = append(hostsToRemove, fileScanner.Text())
 	}
 
 	// Loop through the issues and remove the hosts
-	for i := range prism.Issues {
-		for j := range prism.Issues[i].AffectedHosts {
-			for _, host := range hostsToRemove {
-				// If the host is in the list of affected hosts, remove it
-				if prism.Issues[i].AffectedHosts[j].Ip == host || prism.Issues[i].AffectedHosts[j].Hostname == host {
+	lenPrismIssues := len(prism.Issues)
+	for issueIndex := 0; issueIndex < lenPrismIssues; issueIndex++ {
 
-					fmt.Printf("[+] Removing host %s from issue %s\n", host, prism.Issues[i].Name)
-					prism.Issues[i].AffectedHosts = append(prism.Issues[i].AffectedHosts[:j], prism.Issues[i].AffectedHosts[j+1:]...)
+		lenAffectedHosts := len(prism.Issues[issueIndex].AffectedHosts)
+		for affectedHostIndex := 0; affectedHostIndex < lenAffectedHosts; affectedHostIndex++ {
+			for _, hostToRemove := range hostsToRemove {
+
+				// Remove the host if it matches
+				if prism.Issues[issueIndex].AffectedHosts[affectedHostIndex].Ip != nil && *prism.Issues[issueIndex].AffectedHosts[affectedHostIndex].Ip == hostToRemove {
+
+					fmt.Println("Removing host", hostToRemove, "from issue", prism.Issues[issueIndex].Name)
+					prism.Issues[issueIndex].AffectedHosts = append(prism.Issues[issueIndex].AffectedHosts[:affectedHostIndex], prism.Issues[issueIndex].AffectedHosts[affectedHostIndex+1:]...)
+
+					// Remove the issue if there are no more hosts
+					if len(prism.Issues[issueIndex].AffectedHosts) == 0 {
+						prism.Issues = append(prism.Issues[:issueIndex], prism.Issues[issueIndex+1:]...)
+						issueIndex--
+						lenPrismIssues--
+					}
+
+					// Update the length of the affected hosts
+					lenAffectedHosts = len(prism.Issues[issueIndex].AffectedHosts)
+					affectedHostIndex--
 					break
 				}
 			}
 		}
+	}
+
+	// Write the prism file back out
+	fOutputFile, err := os.Create(*outputFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer fOutputFile.Close()
+
+	jsonEncoder := json.NewEncoder(fOutputFile)
+	jsonEncoder.SetIndent("", "  ")
+	if err = jsonEncoder.Encode(prism); err != nil {
+		log.Fatal(err)
 	}
 }
