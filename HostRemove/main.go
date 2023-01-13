@@ -138,6 +138,7 @@ func main() {
 
 					// Remove the issue if there are no more hosts
 					if len(prism.Issues[issueIndex].AffectedHosts) == 0 {
+						fmt.Println("Removing issue as it only affected your host", prism.Issues[issueIndex].Name)
 						prism.Issues = append(prism.Issues[:issueIndex], prism.Issues[issueIndex+1:]...)
 						issueIndex--
 						lenPrismIssues--

@@ -1,4 +1,5 @@
 NucleiImporter/output/custom/*
 NucleiImporter/output/nuclei/*
 GoFuckery/*.json
+HostRemove/*.json
 
