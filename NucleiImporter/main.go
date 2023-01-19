@@ -13,6 +13,7 @@ import (
 
 var (
 	inputFile        *string
+	outputFile       *string
 	currentTimestamp = time.Now().UnixNano()
 )
 
@@ -155,8 +156,13 @@ func (n *Nuclei) ToPrismJSON() {
 	// Get todays date
 	today := time.Now().Format("2006-01-02")
 
-	// Create the output file
 	outFile := fmt.Sprintf("output/custom/prism_json_%s_%d.json", today, currentTimestamp)
+
+	// Create the output file
+	if outputFile != nil {
+		outFile = *outputFile
+	}
+
 	file, err := os.Create(outFile)
 	fmt.Println("[+] Writing output to " + outFile)
 	if err != nil {
@@ -266,6 +272,7 @@ func (n *Nuclei) ToPrismJSON() {
 func main() {
 
 	inputFile = flag.String("f", "", "File to parse")
+	outputFile = flag.String("o", "", "Output File")
 	flag.Parse()
 
 	n := Nuclei{}
