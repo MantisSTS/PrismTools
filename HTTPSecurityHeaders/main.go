@@ -164,7 +164,9 @@ func fetchRemoveHeaders() {
 	headersToRemove = removeHeaders
 }
 
-func checkHeaders(url string) {
+func checkHeaders(url string) (string, error) {
+
+	var err error
 
 	// Ignore SSL certificates
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
@@ -173,14 +175,14 @@ func checkHeaders(url string) {
 	req, err := http.NewRequest("HEAD", url, nil)
 	if err != nil {
 		log.Fatal("NewRequest: ", err)
-		return
+		return "", err
 	}
 
 	// Check the headers in the response
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Fatal("Do: ", err)
-		return
+		return "", err
 	}
 
 	defer resp.Body.Close()
@@ -190,21 +192,27 @@ func checkHeaders(url string) {
 		for _, OSHPHeader := range headersToAdd.Headers {
 			if strings.EqualFold(strings.ToLower(strings.ReplaceAll(headerName, " ", "")), strings.ToLower(strings.ReplaceAll(OSHPHeader.Name, " ", ""))) {
 				if headerValue[0] != OSHPHeader.Value {
-					fmt.Printf("URL: %s | Header %s is not set to %s", url, headerName, OSHPHeader.Value)
+					return fmt.Sprintf("URL: %s | Header %s is not set to %s", url, headerName, OSHPHeader.Value), nil
 				}
 			}
 		}
 	}
 
-	// Push the results to the queue
-	// resultsQueue <- fmt.Sprintf("%s: %s", url, resp.Status)
+	return "", err
 }
 
 func processQueue(jobQueue chan string, wg *sync.WaitGroup) {
 
 	// Loop over the queue
 	for url := range jobQueue {
-		checkHeaders(url)
+		res, err := checkHeaders(url)
+		if err != nil {
+			log.Println(err)
+		}
+
+		if res != "" {
+			resultsQueue <- res
+		}
 	}
 	wg.Done()
 }
@@ -249,24 +257,19 @@ func main() {
 		go processQueue(jobQueue, &wg)
 	}
 
-	// // Create a file
-	// f, err := os.Create(*outputFile)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// defer f.Close()
-
-	// // Write the results to the file
-	// for i := 0; i < cap(jobQueue); i++ {
-	// 	f.WriteString(<-resultsQueue)
-	// }
+	// Create a file
+	of, err := os.Create(*outputFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer of.Close()
 
 	wg.Wait()
-
 	close(resultsQueue)
 
 	for res := range resultsQueue {
+		// Write to the file
 		fmt.Println(res)
+		of.WriteString(res + "\n")
 	}
-
 }
