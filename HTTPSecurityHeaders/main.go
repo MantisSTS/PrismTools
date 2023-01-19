@@ -96,7 +96,7 @@ type RemoveHeaders struct {
 }
 
 var (
-	resultsQueue    = make(chan string, 100)
+	resultsQueue    = make(chan []string, 100)
 	jobQueue        = make(chan string, 100)
 	headersToAdd    AddHeaders
 	headersToRemove RemoveHeaders
@@ -164,9 +164,10 @@ func fetchRemoveHeaders() {
 	headersToRemove = removeHeaders
 }
 
-func checkHeaders(url string) (string, error) {
+func checkHeaders(url string) ([]string, error) {
 
 	var err error
+	var output []string
 
 	// Ignore SSL certificates
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
@@ -175,30 +176,35 @@ func checkHeaders(url string) (string, error) {
 	req, err := http.NewRequest("HEAD", url, nil)
 	if err != nil {
 		log.Fatal("NewRequest: ", err)
-		return "", err
+		return output, err
 	}
 
 	// Check the headers in the response
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Fatal("Do: ", err)
-		return "", err
+		return output, err
 	}
 
 	defer resp.Body.Close()
 
 	// Check the headers
-	for headerName, headerValue := range resp.Header {
-		for _, OSHPHeader := range headersToAdd.Headers {
+	for _, OSHPHeader := range headersToAdd.Headers {
+		// Check if the response header exists within the OWASP headers
+		if _, ok := resp.Header[OSHPHeader.Name]; !ok {
+			output = append(output, fmt.Sprintf("URL: %s | Header %s is not set", url, OSHPHeader.Name))
+		}
+
+		for headerName, headerValue := range resp.Header {
 			if strings.EqualFold(strings.ToLower(strings.ReplaceAll(headerName, " ", "")), strings.ToLower(strings.ReplaceAll(OSHPHeader.Name, " ", ""))) {
 				if headerValue[0] != OSHPHeader.Value {
-					return fmt.Sprintf("URL: %s | Header %s is not set to %s", url, headerName, OSHPHeader.Value), nil
+					output = append(output, fmt.Sprintf("URL: %s | Header %s is not set to %s", url, headerName, OSHPHeader.Value))
 				}
 			}
 		}
 	}
 
-	return "", err
+	return output, err
 }
 
 func processQueue(jobQueue chan string, wg *sync.WaitGroup) {
@@ -210,7 +216,7 @@ func processQueue(jobQueue chan string, wg *sync.WaitGroup) {
 			log.Println(err)
 		}
 
-		if res != "" {
+		if len(res) > 0 {
 			resultsQueue <- res
 		}
 	}
@@ -269,7 +275,10 @@ func main() {
 
 	for res := range resultsQueue {
 		// Write to the file
-		fmt.Println(res)
-		of.WriteString(res + "\n")
+		for _, line := range res {
+			fmt.Println(line)
+			of.WriteString(line + "\n")
+		}
+
 	}
 }
