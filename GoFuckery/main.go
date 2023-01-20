@@ -162,9 +162,7 @@ func main() {
 		if re.MatchString(issue.TechnicalDetails) {
 			green.Println("[+] Found \"Fixed version\" in technical details, updating...")
 			updatedTechnicalDetails := re.ReplaceAllString(issue.TechnicalDetails, "$2")
-
-			fmt.Printf("\n----------\n\n%s\n----------\n\n", updatedTechnicalDetails)
-
+			// fmt.Printf("\n----------\n\n%s\n----------\n\n", updatedTechnicalDetails)
 			prism.Issues[issueIndex].TechnicalDetails = updatedTechnicalDetails
 		}
 
