@@ -162,9 +162,18 @@ func main() {
 		if re.MatchString(issue.TechnicalDetails) {
 			green.Println("[+] Found \"Fixed version\" in technical details, updating...")
 			updatedTechnicalDetails := re.ReplaceAllString(issue.TechnicalDetails, "$2")
-			// fmt.Printf("\n----------\n\n%s\n----------\n\n", updatedTechnicalDetails)
 			prism.Issues[issueIndex].TechnicalDetails = updatedTechnicalDetails
 		}
+
+		// Perform a regex lookup on the technical details to remove multiple newlines
+		nlRe := regexp.MustCompile(`(\<br\s?\/\>\<br\s?\/\>\<\/p\>|\\u003cbr\s?\/\\u003e\\u003cbr\s?\/\\u003e\\u003c\/p\\u003e)`)
+		if nlRe.MatchString(issue.TechnicalDetails) {
+			replaceNewLineTechDetails := nlRe.ReplaceAllString(issue.TechnicalDetails, "\u003c/p\u003e")
+			prism.Issues[issueIndex].TechnicalDetails = replaceNewLineTechDetails
+		}
+
+		// Remove unwanted empty paragraph tags
+		prism.Issues[issueIndex].TechnicalDetails = strings.ReplaceAll(prism.Issues[issueIndex].TechnicalDetails, "\u003cp\u003e\u003c/p\u003e", "")
 
 		// Check for "remote"
 		badStrings := map[string]string{
@@ -218,7 +227,6 @@ func main() {
 				updatedRecommendation := strings.ReplaceAll(*issue.Recommendation, badString, goodString)
 				*prism.Issues[issueIndex].Recommendation = updatedRecommendation
 			}
-
 		}
 
 		if issue.References != nil {
