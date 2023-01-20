@@ -198,7 +198,7 @@ func checkHeaders(url string) ([]string, error) {
 		for headerName, headerValue := range resp.Header {
 			if strings.EqualFold(strings.ToLower(strings.ReplaceAll(headerName, " ", "")), strings.ToLower(strings.ReplaceAll(OSHPHeader.Name, " ", ""))) {
 				if headerValue[0] != OSHPHeader.Value {
-					output = append(output, fmt.Sprintf("URL: %s | Header %s is not set to %s", url, headerName, OSHPHeader.Value))
+					output = append(output, fmt.Sprintf("URL: %s | Header %s (%s) is not set to %s", url, headerName, headerValue, OSHPHeader.Value))
 				}
 			}
 		}
@@ -279,6 +279,5 @@ func main() {
 			fmt.Println(line)
 			of.WriteString(line + "\n")
 		}
-
 	}
 }

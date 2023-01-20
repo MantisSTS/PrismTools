@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/fatih/color"
 	"github.com/goark/go-cvss/v3/metric"
 )
 
@@ -101,6 +102,9 @@ func main() {
 		os.Exit(0)
 	}
 
+	red := color.New(color.FgRed)
+	green := color.New(color.FgGreen)
+
 	// Read the file
 	file, err := os.ReadFile(*filename)
 	if err != nil {
@@ -120,21 +124,43 @@ func main() {
 
 	for issueIndex, issue := range prism.Issues {
 
+		// Check the char length of the CVEs
+		if issue.Cves != nil {
+			charCount := 0
+			for cveIndex, cve := range *issue.Cves {
+				charCount += len(cve) + 2 // +2 for the newline chars (\r\n)
+				if charCount >= 10000 {
+					green.Println("[+] Found CVEs with a character count greater than 10000, removing the rest...")
+
+					// Remove everything after the 10000 character count
+					*prism.Issues[issueIndex].Cves = (*issue.Cves)[:cveIndex]
+
+					// Verify the new character count
+					c := 0
+					for _, k := range *prism.Issues[issueIndex].Cves {
+						c += len(k)
+					}
+					green.Printf("[+] New character count: %d\n", c)
+					break
+				}
+			}
+		}
+
 		if issue.OriginalRiskRating == "Critical" || issue.OriginalRiskRating == "High" {
 			issuesForExecSummary = append(issuesForExecSummary, issue.Name)
 		}
 
 		// Check the technical details for "Tenable ciphername" and replace it with "Ciphername"
 		if strings.Contains(issue.TechnicalDetails, "Tenable ciphername") {
-			fmt.Println("[+] Found Tenable ciphername in technical details, updating...")
+			green.Println("[+] Found Tenable ciphername in technical details, updating...")
 			updatedTechnicalDetails := strings.ReplaceAll(issue.TechnicalDetails, "Tenable ciphername", "Ciphername")
 			prism.Issues[issueIndex].TechnicalDetails = updatedTechnicalDetails
 		}
 
 		// Perform a regex lookup on the technical details to check for Fixed version : [0-9\.]+?</p> and remove it
-		re := regexp.MustCompile(`Fixed version\s?:\s?[0-9\.]+?</p>`)
+		re := regexp.MustCompile(`Fixed version\s*:\s*[A-Za-z0-9\.-]*</p>`)
 		if re.MatchString(issue.TechnicalDetails) {
-			fmt.Println("[+] Found Fixed version in technical details, updating...")
+			green.Println("[+] Found Fixed version in technical details, updating...")
 			updatedTechnicalDetails := re.ReplaceAllString(issue.TechnicalDetails, "</p>")
 			prism.Issues[issueIndex].TechnicalDetails = updatedTechnicalDetails
 		}
@@ -165,28 +191,28 @@ func main() {
 
 			// Check the finding
 			if strings.Contains(issue.Finding, badString) {
-				fmt.Println("[+] Found \"", badString, "\" in finding, updating...")
+				green.Println("[+] Found \"", badString, "\" in finding, updating...")
 				updatedFinding := strings.ReplaceAll(issue.Finding, badString, goodString)
 				prism.Issues[issueIndex].Finding = updatedFinding
 			}
 
 			// Check the summary
 			if strings.Contains(*issue.Summary, badString) {
-				fmt.Println("[+] Found \"", badString, "\" in summary, updating...")
+				green.Println("[+] Found \"", badString, "\" in summary, updating...")
 				updatedSummary := strings.ReplaceAll(*issue.Summary, badString, goodString)
 				*prism.Issues[issueIndex].Summary = updatedSummary
 			}
 
 			// Check the Technical Details
 			if strings.Contains(issue.TechnicalDetails, badString) {
-				fmt.Println("[+] Found \"", badString, "\" in technical details, updating...")
+				green.Println("[+] Found \"", badString, "\" in technical details, updating...")
 				updatedTechnicalDetails := strings.ReplaceAll(issue.TechnicalDetails, badString, goodString)
 				prism.Issues[issueIndex].TechnicalDetails = updatedTechnicalDetails
 			}
 
 			// Check the recommendation
 			if strings.Contains(*issue.Recommendation, badString) {
-				fmt.Println("[+] Found \"", badString, "\" in recommendation, updating...")
+				green.Println("[+] Found \"", badString, "\" in recommendation, updating...")
 				updatedRecommendation := strings.ReplaceAll(*issue.Recommendation, badString, goodString)
 				*prism.Issues[issueIndex].Recommendation = updatedRecommendation
 			}
@@ -210,13 +236,13 @@ func main() {
 
 						// Get the redirect URL
 						updatedReference := resp.Request.URL.String()
-						fmt.Println("[+] Fixing Reference URL: " + prism.Issues[prismIssueIndex].References[prismRefIndex] + " -> " + updatedReference)
+						green.Println("[+] Fixing Reference URL: " + prism.Issues[prismIssueIndex].References[prismRefIndex] + " -> " + updatedReference)
 						prism.Issues[prismIssueIndex].References[prismRefIndex] = updatedReference
 					}
 				}(issueIndex, refIndex)
 			}
 		} else {
-			fmt.Println("[-] No references found for issue: " + issue.Name)
+			red.Println("[-] No references found for issue: " + issue.Name)
 		}
 
 		// Check the CVSS score
@@ -229,7 +255,7 @@ func main() {
 					if prism.Issues[issueIndex].OriginalRiskRating == "Info" && bm.Severity().String() == "None" {
 						continue
 					}
-					fmt.Println("[+] Fixing Severity: " + prism.Issues[issueIndex].OriginalRiskRating + " -> " + bm.Severity().String())
+					green.Println("[+] Fixing Severity: " + prism.Issues[issueIndex].OriginalRiskRating + " -> " + bm.Severity().String())
 					prism.Issues[issueIndex].OriginalRiskRating = bm.Severity().String()
 				}
 			}
@@ -239,11 +265,11 @@ func main() {
 				*prism.Issues[issueIndex].CvssVector = strings.Replace(*prism.Issues[issueIndex].CvssVector, "CVSS:3.0", "CVSS:3.1", 1)
 			}
 		} else {
-			fmt.Println("[-] No CVSS score found for issue: " + issue.Name)
+			red.Println("[-] No CVSS score found for issue: " + issue.Name)
 		}
 
 		if !strings.HasPrefix(*issue.Recommendation, "It is recommended ") {
-			fmt.Println("[-] Recommendation does not start with 'It is recommended ' for issue: " + issue.Name)
+			red.Println("[-] Recommendation does not start with 'It is recommended ' for issue: " + issue.Name)
 		}
 	}
 
