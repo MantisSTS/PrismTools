@@ -158,10 +158,13 @@ func main() {
 		}
 
 		// Perform a regex lookup on the technical details to check for Fixed version : [0-9\.]+?</p> and remove it
-		re := regexp.MustCompile(`Fixed version\s*:\s*[A-Za-z0-9\.-]*</p>`)
+		re := regexp.MustCompile(`(Should be|Fixed version)\s*:\s*[A-Za-z0-9\.\-_]*(\\u003c|\<)?`)
 		if re.MatchString(issue.TechnicalDetails) {
-			green.Println("[+] Found Fixed version in technical details, updating...")
-			updatedTechnicalDetails := re.ReplaceAllString(issue.TechnicalDetails, "</p>")
+			green.Println("[+] Found \"Fixed version\" in technical details, updating...")
+			updatedTechnicalDetails := re.ReplaceAllString(issue.TechnicalDetails, "$2")
+
+			fmt.Printf("\n----------\n\n%s\n----------\n\n", updatedTechnicalDetails)
+
 			prism.Issues[issueIndex].TechnicalDetails = updatedTechnicalDetails
 		}
 
@@ -185,6 +188,7 @@ func main() {
 			"service accepts":          "service accepted",
 			"host allows":              "host allowed",
 			"server allows":            "server allowed",
+			"is prior":                 "was prior",
 		}
 
 		for badString, goodString := range badStrings {
