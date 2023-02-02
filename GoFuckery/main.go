@@ -146,6 +146,10 @@ func main() {
 			}
 		}
 
+		// Remove plugin notes
+		noteRegex := regexp.MustCompile(`<br />Note that this plugin.*</p>`)
+		*prism.Issues[issueIndex].Summary = noteRegex.ReplaceAllString(*issue.Summary, "</p>")
+
 		if issue.OriginalRiskRating == "Critical" || issue.OriginalRiskRating == "High" {
 			issuesForExecSummary = append(issuesForExecSummary, issue.Name)
 		}
@@ -177,53 +181,63 @@ func main() {
 
 		// Check for "remote"
 		badStrings := map[string]string{
-			"remote service is":        "service was",
-			"remote server":            "server",
-			"remote web server":        "web server",
-			"The remote":               "The",
-			"remote host":              "host",
-			"is affected":              "was affected",
-			"service allows":           "service allowed",
-			"service supports":         "service supported",
-			"host supports":            "host supported",
-			"algorithms are supported": "algorithms were supported",
-			"algorithms are enabled":   "algorithms were enabled",
-			"It is, therefore,":        "It was, therefore,",
-			"certificate has already":  "certificate had already",
-			"service ends":             "service ended",
-			"service encrypts":         "service encrypted",
-			"service accepts":          "service accepted",
-			"host allows":              "host allowed",
-			"server allows":            "server allowed",
-			"is prior":                 "was prior",
+			"remote service is":         "service was",
+			"remote server":             "server",
+			"remote web server":         "web server",
+			"The remote":                "The",
+			"remote host":               "host",
+			"is affected":               "was affected",
+			"service allows":            "service allowed",
+			"service supports":          "service supported",
+			"host supports":             "host supported",
+			"algorithms are supported":  "algorithms were supported",
+			"algorithms are enabled":    "algorithms were enabled",
+			"It is, therefore,":         "It was, therefore,",
+			"certificate has already":   "certificate had already",
+			"service ends":              "service ended",
+			"service encrypts":          "service encrypted",
+			"service accepts":           "service accepted",
+			"host allows":               "host allowed",
+			"server allows":             "server allowed",
+			"is prior":                  "was prior",
+			"host is":                   "host was",
+			"is running":                "was running",
+			"is installed":              "was installed",
+			"host contains":             "host contained",
+			"Tenable Network Security":  "Rootshell Security",
+			"host seems":                "host seemed",
+			"server uses":               "server used",
+			"server discloses":          "server disclosed",
+			"This plugin checks expiry": "Rootshell checked the expiry",
+			"it is signed":              "it was signed",
 		}
 
 		for badString, goodString := range badStrings {
 
 			// Check the finding
 			if strings.Contains(issue.Finding, badString) {
-				green.Println("[+] Found \"", badString, "\" in finding, updating...")
+				green.Println("[+] Found \"", badString, "\" in finding, replacing with \"", goodString, "\"...")
 				updatedFinding := strings.ReplaceAll(issue.Finding, badString, goodString)
 				prism.Issues[issueIndex].Finding = updatedFinding
 			}
 
 			// Check the summary
 			if strings.Contains(*issue.Summary, badString) {
-				green.Println("[+] Found \"", badString, "\" in summary, updating...")
+				green.Println("[+] Found \"", badString, "\" in summary, replacing with \"", goodString, "\"...")
 				updatedSummary := strings.ReplaceAll(*issue.Summary, badString, goodString)
 				*prism.Issues[issueIndex].Summary = updatedSummary
 			}
 
 			// Check the Technical Details
 			if strings.Contains(issue.TechnicalDetails, badString) {
-				green.Println("[+] Found \"", badString, "\" in technical details, updating...")
+				green.Println("[+] Found \"", badString, "\" in technical details, replacing with \"", goodString, "\"...")
 				updatedTechnicalDetails := strings.ReplaceAll(issue.TechnicalDetails, badString, goodString)
 				prism.Issues[issueIndex].TechnicalDetails = updatedTechnicalDetails
 			}
 
 			// Check the recommendation
 			if strings.Contains(*issue.Recommendation, badString) {
-				green.Println("[+] Found \"", badString, "\" in recommendation, updating...")
+				green.Println("[+] Found \"", badString, "\" in recommendation, replacing with \"", goodString, "\"...")
 				updatedRecommendation := strings.ReplaceAll(*issue.Recommendation, badString, goodString)
 				*prism.Issues[issueIndex].Recommendation = updatedRecommendation
 			}
