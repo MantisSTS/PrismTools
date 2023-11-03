@@ -1,7 +1,25 @@
 import requests 
 import bs4
 import sys
+from io import StringIO
+from html.parser import HTMLParser
 
+class MLStripper(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.reset()
+        self.strict = False
+        self.convert_charrefs= True
+        self.text = StringIO()
+    def handle_data(self, d):
+        self.text.write(d)
+    def get_data(self):
+        return self.text.getvalue()
+
+def strip_tags(html):
+    s = MLStripper()
+    s.feed(html)
+    return s.get_data()
 
 snyk_lookup_url = 'https://security.snyk.io/package/npm/{}/{}'
 snyk_url = 'https://security.snyk.io/{}'
@@ -24,6 +42,11 @@ def main():
     results = []
 
     for vuln in vulns:
+        # Print the description of the vulnerability
+        d = vuln.find_all('p')
+        for desc in d:
+            print(strip_tags(desc.text.strip()))
+
         v = vuln.find_all('a', class_='vue--anchor', href=True)
         for a in v:
             lookup_cve = requests.get(snyk_url.format(a['href'].strip()))
